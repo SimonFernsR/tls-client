@@ -110,6 +110,7 @@ echo "==> Building the 13-target xgo matrix"
   cd "$stage_dir"
   "$xgo_bin" \
     -go "$GO_VERSION" \
+    -dockerargs=--platform=linux/amd64 \
     -buildmode=c-shared \
     -buildvcs=false \
     -pkg ./cffi_dist \
