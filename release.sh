@@ -175,7 +175,7 @@ if [[ "${RELEASE_BUILD_ONLY:-0}" == "1" ]]; then
 fi
 
 command -v gh >/dev/null 2>&1 || fail "gh is required to publish the release"
-gh auth status -h github.com >/dev/null 2>&1 || fail "GitHub CLI is not authenticated; run: gh auth login -h github.com"
+gh api user >/dev/null 2>&1 || fail "GitHub CLI is not authenticated; run: gh auth login -h github.com"
 
 release_repo="${RELEASE_REPO:-}"
 if [[ -z "$release_repo" ]]; then
