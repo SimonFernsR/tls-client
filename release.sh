@@ -104,6 +104,11 @@ release_assets=("${native_assets[@]}" "${xgo_assets[@]}")
 for asset in "${release_assets[@]}"; do
   rm -f -- "$DIST_DIR/$asset"
 done
+rm -f -- \
+  "$DIST_DIR/tls-client-xgo-$VERSION-darwin-10.12-amd64.dylib" \
+  "$DIST_DIR/tls-client-xgo-$VERSION-darwin-10.12-arm64.dylib" \
+  "$DIST_DIR/tls-client-xgo-$VERSION-windows-4.0-386.dll" \
+  "$DIST_DIR/tls-client-xgo-$VERSION-windows-4.0-amd64.dll"
 
 echo "==> Building the 13-target xgo matrix"
 echo "==> Ensuring the amd64 xgo image is available (required for linux/386)"
@@ -117,9 +122,17 @@ docker pull --platform linux/amd64 "ghcr.io/techknowlogick/xgo:$GO_VERSION"
     -buildvcs=false \
     -pkg ./cffi_dist \
     -targets=darwin/amd64,darwin/arm64,linux/386,linux/amd64,linux/arm-5,linux/arm-6,linux/arm-7,linux/arm64,linux/ppc64le,linux/riscv64,linux/s390x,windows/386,windows/amd64 \
-    -out "cffi_dist/dist/tls-client-xgo-$VERSION" \
+    -dest "$DIST_DIR" \
+    -out "tls-client-xgo-$VERSION" \
     .
 )
+
+# Current xgo includes the minimum OS version in Darwin and Windows filenames;
+# upstream tls-client release assets omit those two version components.
+mv "$DIST_DIR/tls-client-xgo-$VERSION-darwin-10.12-amd64.dylib" "$DIST_DIR/tls-client-xgo-$VERSION-darwin-amd64.dylib"
+mv "$DIST_DIR/tls-client-xgo-$VERSION-darwin-10.12-arm64.dylib" "$DIST_DIR/tls-client-xgo-$VERSION-darwin-arm64.dylib"
+mv "$DIST_DIR/tls-client-xgo-$VERSION-windows-4.0-386.dll" "$DIST_DIR/tls-client-xgo-$VERSION-windows-386.dll"
+mv "$DIST_DIR/tls-client-xgo-$VERSION-windows-4.0-amd64.dll" "$DIST_DIR/tls-client-xgo-$VERSION-windows-amd64.dll"
 
 echo "==> Building Linux amd64 glibc and musl variants"
 docker run --rm --platform linux/amd64 \
@@ -135,25 +148,20 @@ docker run --rm --platform linux/amd64 \
   sh -c "apk add --no-cache gcc musl-dev >/dev/null && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -buildmode=c-shared -buildvcs=false -o cffi_dist/dist/tls-client-linux-alpine-amd64-$VERSION.so ./cffi_dist"
 
 echo "==> Creating the upstream-compatible native filenames"
-cp "$stage_dist/tls-client-xgo-$VERSION-darwin-amd64.dylib" "$stage_dist/tls-client-darwin-amd64-$VERSION.dylib"
-cp "$stage_dist/tls-client-xgo-$VERSION-darwin-arm64.dylib" "$stage_dist/tls-client-darwin-arm64-$VERSION.dylib"
-cp "$stage_dist/tls-client-xgo-$VERSION-linux-arm64.so" "$stage_dist/tls-client-linux-arm64-$VERSION.so"
-cp "$stage_dist/tls-client-xgo-$VERSION-linux-arm-7.so" "$stage_dist/tls-client-linux-armv7-$VERSION.so"
-cp "$stage_dist/tls-client-xgo-$VERSION-windows-386.dll" "$stage_dist/tls-client-windows-32-$VERSION.dll"
-cp "$stage_dist/tls-client-xgo-$VERSION-windows-amd64.dll" "$stage_dist/tls-client-windows-64-$VERSION.dll"
+cp "$DIST_DIR/tls-client-xgo-$VERSION-darwin-amd64.dylib" "$DIST_DIR/tls-client-darwin-amd64-$VERSION.dylib"
+cp "$DIST_DIR/tls-client-xgo-$VERSION-darwin-arm64.dylib" "$DIST_DIR/tls-client-darwin-arm64-$VERSION.dylib"
+cp "$DIST_DIR/tls-client-xgo-$VERSION-linux-arm64.so" "$DIST_DIR/tls-client-linux-arm64-$VERSION.so"
+cp "$DIST_DIR/tls-client-xgo-$VERSION-linux-arm-7.so" "$DIST_DIR/tls-client-linux-armv7-$VERSION.so"
+cp "$DIST_DIR/tls-client-xgo-$VERSION-windows-386.dll" "$DIST_DIR/tls-client-windows-32-$VERSION.dll"
+cp "$DIST_DIR/tls-client-xgo-$VERSION-windows-amd64.dll" "$DIST_DIR/tls-client-windows-64-$VERSION.dll"
+cp "$stage_dist/tls-client-linux-ubuntu-amd64-$VERSION.so" "$DIST_DIR/tls-client-linux-ubuntu-amd64-$VERSION.so"
+cp "$stage_dist/tls-client-linux-alpine-amd64-$VERSION.so" "$DIST_DIR/tls-client-linux-alpine-amd64-$VERSION.so"
 
-echo "==> Verifying and collecting 21 release assets"
+echo "==> Verifying 21 release assets"
 for asset in "${release_assets[@]}"; do
-  [[ -s "$stage_dist/$asset" ]] || fail "missing or empty build artifact: $asset"
-  cp "$stage_dist/$asset" "$DIST_DIR/$asset"
+  [[ -s "$DIST_DIR/$asset" ]] || fail "missing or empty build artifact: $asset"
 done
-
-actual_count=0
-for asset in "${release_assets[@]}"; do
-  [[ -s "$DIST_DIR/$asset" ]] || fail "failed to collect artifact: $asset"
-  actual_count=$((actual_count + 1))
-done
-[[ "$actual_count" -eq 21 ]] || fail "expected 21 artifacts, found $actual_count"
+[[ "${#release_assets[@]}" -eq 21 ]] || fail "internal asset manifest does not contain 21 files"
 
 if command -v shasum >/dev/null 2>&1; then
   (cd "$DIST_DIR" && shasum -a 256 "${release_assets[@]}")
