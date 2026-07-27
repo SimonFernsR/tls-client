@@ -106,6 +106,8 @@ for asset in "${release_assets[@]}"; do
 done
 
 echo "==> Building the 13-target xgo matrix"
+echo "==> Ensuring the amd64 xgo image is available (required for linux/386)"
+docker pull --platform linux/amd64 "ghcr.io/techknowlogick/xgo:$GO_VERSION"
 (
   cd "$stage_dir"
   "$xgo_bin" \
